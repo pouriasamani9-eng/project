@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Valkeakoski Quiz — 4 Questions</title>
+  <style>
+    body{font-family: Arial, sans-serif;text-align: center;padding:20px;background:#f7f9fc;color:#111}
+    .card{max-width:520px;margin:20px auto;background:white;padding:18px;border-radius:12px;box-shadow:0 6px 20px rgba(20,30,60,0.08)}
+    h1{font-size:20px;margin:0 0 10px}
+    p.lead{margin:6px 0 16px;color:#444}
+    #scanner{width:100%;height:300px;background:#000;border-radius:8px;overflow:hidden;display:none}
+    .btn{display:inline-block;padding:10px 16px;border-radius:8px;border:none;background:#2b7aee;color:white;cursor:pointer;margin:6px}
+    .options button{display:block;width:100%;margin:8px 0;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;text-align:left}
+    .options button.correct{border-color:green;background:#eefdea}
+    .options button.wrong{border-color:red;background:#ffecec}
+    footer{font-size:12px;margin-top:10px;color:#666}
+    .hidden{display:none}
+    .center{text-align:center}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Quick Quiz — Valkeakoski</h1>
+    <p class="lead">To enter, scan a QR/barcode or press "Enter without Scan".</p>
+
+    <div id="loginArea" class="center">
+      <div id="scanner"></div>
+      <div style="margin-top:8px">
+        <button id="startScan" class="btn">Scan QR with Camera</button>
+        <button id="skipScan" class="btn" style="background:#6c757d">Enter without Scan</button>
+      </div>
+      <p style="font-size:13px;color:#666;margin-top:8px">Note: If your browser cannot access the camera, use the "Enter without Scan" button.</p>
+    </div>
+
+    <div id="gameArea" class="hidden">
+      <div id="questionBox"></div>
+      <div class="options" id="optionsBox"></div>
+      <div id="feedback" style="min-height:28px"></div>
+      <div style="margin-top:12px">
+        <button id="nextBtn" class="btn hidden">Next</button>
+      </div>
+    </div>
+
+    <div id="resultArea" class="hidden center">
+      <h2>Game Over 🎉</h2>
+      <p id="scoreText"></p>
+      <button id="playAgain" class="btn">Play Again</button>
+    </div>
+
+    <footer>Web version — 4 Questions · Built for Pouria</footer>
+  </div>
+
+  <!-- html5-qrcode from unpkg (used only if camera scanning is available) -->
+  <script src="https://unpkg.com/html5-qrcode@2.4.3/minified/html5-qrcode.min.js"></script>
+
+  <script>
+    // Questions provided by the user
+    const questions = [
+      {
+        q: "1. What is Valkeakoski especially known for?",
+        options: ["A) Ski resorts","B) Paper industry","C) Wine production","D) Gold mining"],
+        answer: 1
+      },
+      {
+        q: "2. What is one of the famous sports teams from Valkeakoski?",
+        options: ["A) Haka football club","B) Jokerit ice hockey team","C) Oulu rugby club","D) Lahti ski team"],
+        answer: 0
+      },
+      {
+        q: "3. How many museums are in Valkeakoski?",
+        options: ["A)2","B)4","C)3","D)5"],
+        answer: 2
+      },
+      {
+        q: "4. Which Finnish city is the closest major city to Valkeakoski?",
+        options: ["A) Helsinki","B) Oulu","C) Tampere","D) Search"],
+        answer: 2
+      }
+    ];
+
+    // App state
+    let current = 0;
+    let score = 0;
+
+    const loginArea = document.getElementById('loginArea');
+    const gameArea = document.getElementById('gameArea');
+    const resultArea = document.getElementById('resultArea');
+    const questionBox = document.getElementById('questionBox');
+    const optionsBox = document.getElementById('optionsBox');
+    const feedback = document.getElementById('feedback');
+    const nextBtn = document.getElementById('nextBtn');
+    const scoreText = document.getElementById('scoreText');
+    const playAgain = document.getElementById('playAgain');
+    const scannerEl = document.getElementById('scanner');
+    let html5QrScanner = null;
+
+    function startGame(){
+      loginArea.classList.add('hidden');
+      gameArea.classList.remove('hidden');
+      current = 0; score = 0;
+      loadQuestion();
+    }
+
+    document.getElementById('skipScan').addEventListener('click', startGame);
+    document.getElementById('playAgain').addEventListener('click', startGame);
+
+    // Next button
+    nextBtn.addEventListener('click', ()=>{
+      nextBtn.classList.add('hidden');
+      feedback.innerText = '';
+      current++;
+      loadQuestion();
+    });
+
+    function loadQuestion(){
+      if(current >= questions.length){
+        endGame();
+        return;
+      }
+      const item = questions[current];
+      questionBox.innerHTML = '<h3 style="text-align:left;margin:0 0 10px">' + item.q + '</h3>';
+      optionsBox.innerHTML = '';
+      item.options.forEach((opt, idx)=>{
+        const btn = document.createElement('button');
+        btn.innerText = opt;
+        btn.onclick = ()=> selectAnswer(idx, btn);
+        optionsBox.appendChild(btn);
+      });
+    }
+
+    function selectAnswer(idx, btn){
+      // disable options
+      Array.from(optionsBox.children).forEach(b=> b.disabled = true);
+      const correctIdx = questions[current].answer;
+      if(idx === correctIdx){
+        score++;
+        btn.classList.add('correct');
+        feedback.innerText = 'Correct!';
+      } else {
+        btn.classList.add('wrong');
+        // highlight correct one
+        optionsBox.children[correctIdx].classList.add('correct');
+        feedback.innerText = 'Wrong answer — the correct answer is highlighted.';
+      }
+      nextBtn.classList.remove('hidden');
+    }
+
+    function endGame(){
+      gameArea.classList.add('hidden');
+      resultArea.classList.remove('hidden');
+      scoreText.innerText = `Your score: ${score} out of ${questions.length}`;
+      // stop scanner if running
+      stopScanner();
+    }
+
+    // QR code scanning using html5-qrcode
+    document.getElementById('startScan').addEventListener('click', ()=>{
+      // show scanner
+      scannerEl.style.display = 'block';
+      const Html5Qrcode = window.Html5Qrcode;
+      const qrRegionId = "scanner";
+      if(html5QrScanner){
+        // already running
+        return;
+      }
+      html5QrScanner = new Html5Qrcode(qrRegionId, { verbose:false });
+      Html5Qrcode.getCameras().then(cameras => {
+        if(cameras && cameras.length){
+          const cameraId = cameras[0].id;
+          html5QrScanner.start(
+            cameraId,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            qrMessage => {
+              // On successful scan, accept any QR and enter game.
+              console.log("QR:", qrMessage);
+              startGame();
+            },
+            errorMessage => {
+              // ignore scan errors
+            }
+          ).catch(err => {
+            alert('Unable to access camera.');
+            console.error(err);
+          });
+        } else {
+          alert('No cameras found.');
+        }
+      }).catch(err => {
+        alert('Error accessing camera.');
+        console.error(err);
+      });
+    });
+
+    function stopScanner(){
+      if(html5QrScanner){
+        html5QrScanner.stop().then(()=>{
+          html5QrScanner.clear();
+          html5QrScanner = null;
+          scannerEl.style.display = 'none';
+        }).catch(e=>{
+          scannerEl.style.display = 'none';
+          html5QrScanner = null;
+        });
+      }
+    }
+
+    // Stop scanner if user navigates away or game ends
+    window.addEventListener('beforeunload', stopScanner);
+  </script>
+</body>
+</html>
